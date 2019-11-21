@@ -47,11 +47,35 @@
 				mainLigthConf();
 
 				creatSol();
-        //
 
-          //entrer le code
+				// model
+				var loader = new FBXLoader();
+				loader.load( 'modele/Samus/source/Samus_Aran_Normle_Armure.fbx', function ( object ) {		//charge le modèle dans object(perso)
 
-				//
+					mixer = new THREE.AnimationMixer( object );		//tout objet qui devra être animé a besoin d'un mixeur = gestionnaire de mixage d'animation
+																												//ex: quand le perso court, ou quand le peso marche, etc...
+
+					//début animation
+					var action = mixer.clipAction( object.animations[ 0 ] );	//actions du perso, on récupère l'animation de 0. En général c'est la seule animation existante
+					action.play();			//permet de faire jouer l'animation 1 fois ou en plusieurs fois selon son nombre d'utilisation
+
+					object.traverse( function ( child ) {			//la scène a pleins d'enfants (child) qui correspondent aux objets.
+																										//traverse permet de renvoyer tous les enfants de la scène en parcourant toute la scène
+
+						//ombre sur les objets finaux
+						if ( child.isMesh ) {				//si l'enfant est un objet, on lui donne l'action de pouvoir projeter de l'ombre et d'en recevoir
+
+							child.castShadow = true;
+							child.receiveShadow = true;
+
+						}
+
+					} );
+					scene.add(loader);
+					scene.add(child);
+					scene.add( object );
+
+				} );
 
 				renderer = new THREE.WebGLRenderer( { antialias: true } );
 				renderer.setPixelRatio( window.devicePixelRatio );
