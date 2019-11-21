@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>"Nom de l'exo"</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" >
+		<style media="screen">
+
+			body{
+				margin: 0;
+				padding: 0
+			}
+			canvas {
+				width: 100%;
+				height: 100%
+			}
+
+		</style>
+	</head>
+	<body>
+
+		<script type="module">
+
+			import * as THREE from './build/three.module.js';
+			import Stats from './build/jsm/libs/stats.module.js';
+
+    	import { GUI } from './build/jsm/libs/dat.gui.module.js';
+    	import { OrbitControls } from './build/jsm/controls/OrbitControls.js';
+			import { FBXLoader } from  './build/jsm/loaders/FBXLoader.js';
+
+			var camera, scene, renderer ,clock;
+			var gui;
+
+      //faire des ligth shadows
+			var spotLight, ambient;
+
+
+			init();
+			animate();
+
+			function init() {
+				scene = new THREE.Scene();
+				clock = new THREE.Clock();
+				camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 1, 3000 );
+				camera.position.y = 400;
+				scene.add(camera);
+				mainLigthConf();
+
+				creatSol();
+        //
+
+          //entrer le code
+
+				//
+
+				renderer = new THREE.WebGLRenderer( { antialias: true } );
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				document.body.appendChild( renderer.domElement );
+
+				renderer.shadowMap.enabled = true; //On permet le calcul des ombres. Il calcule où est l'ombre.
+
+        //C'est le type d'ombre que l'on met. Les softs shadows sont des ombres douces.
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        // Ici on adapte l'intensité de la lumière à l'écran. On peut s'en passer.
+        renderer.gammaInput = true;
+        renderer.gammaOutput = true;
+
+				//
+
+				window.addEventListener( 'resize', onWindowResize, false );
+				getControl();
+			}
+
+			function animate() {
+
+				requestAnimationFrame( animate );
+
+        //entrer le code
+
+				renderer.render( scene, camera );
+
+			}
+
+			function getControl(){
+				var controls = new OrbitControls( camera, renderer.domElement );
+				controls.addEventListener( 'change', render );
+				controls.minDistance = 20;
+				controls.maxDistance = 500; //limite maximum du zoom
+				controls.enablePan = true; //pour déplacer la caméra de droite à gauche
+
+			}
+
+			function render(){
+
+				renderer.render( scene, camera );
+
+			}
+
+			function onWindowResize() {
+
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+			}
+
+			function mainLigthConf(){
+				//Pas de lumières sans ombres, on doit en mettre 2, une ambiante et le spot. L'ambiante est une lumière sombre qui sert à faire la pénombre. Si on ne la met pas on ne verra pes les zones de pénombres.
+				ambient = new THREE.AmbientLight( 0xffffff, 0.1 );
+        scene.add( ambient );
+
+				//C'est le spot mais il y a aussi l'aré light, l'ampoule etc... C'est une lumière avec une forte intensité. Il faut la positionner
+				spotLight = new THREE.SpotLight( 0xffffff, 1 );
+
+        //Première partie de la lumière
+        spotLight.position.set( 30, 100, 35 );
+        spotLight.angle = Math.PI / 4;
+        spotLight.penumbra = 0.05;
+        spotLight.decay = 2;
+        spotLight.distance = 200;
+
+        //Deuxième partie de la lumière qui sont les ombres.
+        spotLight.castShadow = true;
+        spotLight.shadow.mapSize.width = 1024; //C'est important de régler l'ombre, plus on met une grosse valeur, plus c'est beau mais c'est plus long. Mettre des puissances de 2.
+        spotLight.shadow.mapSize.height = 1024;
+        spotLight.shadow.camera.near = 10; //C'est la zone où il y aura des ombres.
+        spotLight.shadow.camera.far = 200;
+        scene.add( spotLight );
+				ligthHelper();
+			}
+
+			function creatSol(){
+				var planMaterial = new THREE.MeshPhongMaterial( { color: 0x808080, dithering: true } );
+				var plan = new THREE.PlaneBufferGeometry( 2000, 2000 );     //pour faire seulement le sol
+
+				var sol = new THREE.Mesh( plan, planMaterial );
+				sol.position.set( 0, 0, 0 );
+				sol.rotation.x = - Math.PI * 0.5;
+				sol.receiveShadow = true;															//le sol va recevoir de l'ombre
+				scene.add( sol );
+			}
+
+			function ligthHelper(){//a suprimmer avant de rendre
+				var lightHelper = new THREE.SpotLightHelper(spotLight);
+
+        var shadowCameraHelper = new THREE.CameraHelper(spotLight.shadow.camera);
+			}
+		</script>
+
+	</body>
+</html>
