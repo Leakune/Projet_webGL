@@ -49,14 +49,14 @@
 				creatSol();
 
 				//Texture
-				let samus_txt = new THREE.TextureLoader().load('modele/Samus/textures/body_d.tga.png');
+				let samus_txt = new THREE.TextureLoader().load('modele/Samus/textures/body_d.tga.png'); //loader la texture
 
 				//stacy_txt.flipY = false;  we flip the texture so that its the right way up
 
-				const samus_mtl = new THREE.MeshPhongMaterial({
-  			map: samus_txt,
+				const samus_mtl = new THREE.MeshPhongMaterial({	
+  			map: samus_txt,						//mapper la texture sur l'objet
   			color: 0xffffff,
-  			skinning: true
+  			skinning: true	//important de le mettre lorsque la matérial devra être animé
 				});
 				// model
 				var loader = new FBXLoader();
