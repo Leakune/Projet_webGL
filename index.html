@@ -28,6 +28,7 @@
     	import { OrbitControls } from './build/jsm/controls/OrbitControls.js';
 			import { FBXLoader } from  './build/jsm/loaders/FBXLoader.js';
 
+			var container, stats; 								//variables pour afficher les frames
 			var camera, scene, renderer ,clock;
 			var mixer;
 			var gui;
@@ -39,6 +40,13 @@
 			animate();
 
 			function init() {
+
+				// stats
+				container = document.createElement( 'div' );
+				document.body.appendChild( container );
+				stats = new Stats();										//affichage des fps dans container
+				container.appendChild( stats.dom );
+
 				scene = new THREE.Scene();
 				clock = new THREE.Clock();
 				camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 1, 3000 );
@@ -53,7 +61,7 @@
 
 				//stacy_txt.flipY = false;  we flip the texture so that its the right way up
 
-				const samus_mtl = new THREE.MeshPhongMaterial({	
+				const samus_mtl = new THREE.MeshPhongMaterial({
   			map: samus_txt,						//mapper la texture sur l'objet
   			color: 0xffffff,
   			skinning: true	//important de le mettre lorsque la matérial devra être animé
@@ -116,6 +124,7 @@
 
 				renderer.render( scene, camera );
 
+				stats.update();									//affichage constamment des fps
 			}
 
 			function getControl(){
@@ -128,6 +137,9 @@
 			}
 
 			function render(){
+
+				lightHelper.update();								//enlever ces 2 lignes lors du rendu
+				shadowCameraHelper.update();
 
 				renderer.render( scene, camera );
 
@@ -148,7 +160,7 @@
         scene.add( ambient );
 
 				//C'est le spot mais il y a aussi l'aré light, l'ampoule etc... C'est une lumière avec une forte intensité. Il faut la positionner
-				spotLight = new THREE.SpotLight( 0xffffff, 1 );
+				spotLight = new THREE.SpotLight( 0xffffff, 2 );
 
         //Première partie de la lumière
         spotLight.position.set( 30, 100, 35 );
@@ -180,8 +192,10 @@
 
 			function ligthHelper(){//a suprimmer avant de rendre
 				var lightHelper = new THREE.SpotLightHelper(spotLight);
+				scene.add( lightHelper );
 
         var shadowCameraHelper = new THREE.CameraHelper(spotLight.shadow.camera);
+				scene.add( shadowCameraHelper );
 			}
 		</script>
 
