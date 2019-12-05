@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<title>three.js webgl - lights - spotlight</title>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+	<link type="text/css" rel="stylesheet" href="main.css">
+</head>
+<body>
+
+
+<script type="module">
+
+    import * as THREE from '../build/three.module.js';
+    import Stats from './jsm/libs/stats.module.js';
+    import { OrbitControls } from './jsm/controls/OrbitControls.js';
+    var container, stats, controls;
+    var camera, scene, renderer, light;
+    var clock = new THREE.Clock();
+    var mixer;
+    var ball;
+
+
+
+	init();
+	animate();
+
+    function init() {
+        container = document.createElement( 'div' );
+        document.body.appendChild( container );
+        camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 1, 2000 );
+        camera.position.set( 100, 200, 300 );
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color( 0xa0a0a0 );
+        light = new THREE.HemisphereLight( 0xffffff, 0x444444 );
+        light.position.set( 0, 200, 0 );
+        scene.add( light );
+        light = new THREE.DirectionalLight( 0xffffff );
+        light.position.set( 0, 200, 100 );
+        light.castShadow = true;
+        light.shadow.camera.top = 180;
+        light.shadow.camera.bottom = - 100;
+        light.shadow.camera.left = - 120;
+        light.shadow.camera.right = 120;
+        scene.add( light );
+
+
+
+        // ground
+        var mesh = new THREE.Mesh( new THREE.PlaneBufferGeometry( 2000, 2000 ), new THREE.MeshPhongMaterial( { color: 0x999999, depthWrite: false } ) );
+        mesh.rotation.x = - Math.PI / 2;
+        mesh.receiveShadow = true;
+        scene.add( mesh );
+        var grid = new THREE.GridHelper( 2000, 20, 0x000000, 0x000000 );
+        grid.material.opacity = 0.2;
+        grid.material.transparent = true;
+        scene.add( grid );
+
+        var sphereRadius = 50;
+		var sphereWidthDivisions = 32;
+        var sphereHeightDivisions = 16;
+        var sphereGeo = new THREE.SphereBufferGeometry(sphereRadius, sphereWidthDivisions, sphereHeightDivisions);
+        var mapUrl = "textures/ball_metroid.jpg";
+        var map    = new THREE.TextureLoader().load( mapUrl );
+        var material = new THREE.MeshBasicMaterial({ map: map });
+        ball = new THREE.Mesh(sphereGeo, material);
+        ball.castShadow = true;
+        ball.receiveShadow = true;
+        scene.add(ball);
+
+        document.addEventListener("keydown", onDocumentKeyDown, false);
+        function onDocumentKeyDown(event) {
+            var keyCode = event.which;
+            // up
+            if (keyCode == 90) {
+                ball.position.z -= 10;
+                // down
+            } else if (keyCode == 83) {
+                ball.position.z += 10;
+                // left
+            } else if (keyCode == 68) {
+                ball.position.x += 10;
+                // right
+            } else if (keyCode == 81) {
+                ball.position.x -= 10;
+                // space
+            } else if (keyCode == 32) {
+                ball.position.z = 0.0;
+                ball.position.y = 0.0;
+            }
+        };
+
+        renderer = new THREE.WebGLRenderer( { antialias: true } );
+        renderer.setPixelRatio( window.devicePixelRatio );
+        renderer.setSize( window.innerWidth, window.innerHeight );
+        renderer.shadowMap.enabled = true;
+        container.appendChild( renderer.domElement );
+        controls = new OrbitControls( camera, renderer.domElement );
+        controls.target.set( 0, 100, 0 );
+        controls.update();
+        window.addEventListener( 'resize', onWindowResize, false );
+        // stats
+        stats = new Stats();
+        container.appendChild( stats.dom );
+    }
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize( window.innerWidth, window.innerHeight );
+    }
+
+    function animate() {
+        requestAnimationFrame( animate );
+        ball.rotation.x -= 0.05;
+        var delta = clock.getDelta();
+        if ( mixer ) mixer.update( delta );
+        renderer.render( scene, camera );
+        stats.update();
+    }
+
+
+</script>
+
+</body>
+</html>
