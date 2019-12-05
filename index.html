@@ -25,15 +25,34 @@
 			import Stats from './build/jsm/libs/stats.module.js';
 
     	import { GUI } from './build/jsm/libs/dat.gui.module.js';
-    	import { OrbitControls } from './build/jsm/controls/OrbitControls.js';
+    	import { OrbitControls } from './build/jsm/controls/OrbitControls.js';      //pour contrôler la boule en vue 3ème personne
+			import { PointerLockControls } from './build/jsm/controls/PointerLockControls.js'; //pour contrôler samus en vue 1ère personne
 			import { FBXLoader } from  './build/jsm/loaders/FBXLoader.js';
 
 			var container, stats; 								//variables pour afficher les frames
-			var camera, scene, renderer ,clock;
+			var camera, controls, scene, renderer ,clock;
 			var mixer;
 			var gui;
       //faire des ligth shadows
-			var spotLight, ambient;
+			var spotLight, ambient, lightHelper;
+
+ 			var mesh_samus;
+
+
+			//actions du perso
+			var moveForward = false;
+			var moveBackward = false;
+			var moveLeft = false;
+			var moveRight = false;
+			var canJump = false;
+
+			var raycaster;
+
+			var prevTime = performance.now();
+			var velocity = new THREE.Vector3();
+			var direction = new THREE.Vector3();
+			var vertex = new THREE.Vector3();
+			var color = new THREE.Color();
 
 
 			init();
@@ -50,48 +69,63 @@
 				scene = new THREE.Scene();
 				clock = new THREE.Clock();
 				camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 1, 3000 );
-				camera.position.y = 400;
-				scene.add(camera);
+				camera.position.set(0, 70, 5);
+				camera.lookAt( 0, 70, 10 );			//là où regarde la caméra
+
+				controls = new PointerLockControls( camera, document.body );
+				document.body.addEventListener('click', function (){
+					controls.lock();
+				});
+				scene.add( controls.getObject() );
+
+				playerControls();
+
+				raycaster = new THREE.Raycaster( new THREE.Vector3(), new THREE.Vector3( 0, - 1, 0 ), 0, 10 );
+
 				mainLigthConf();
 
 				creatSol();
 
 				//Texture
-				let samus_txt = new THREE.TextureLoader().load('modele/Samus/textures/body_d.tga.png'); //loader la texture
+					let samus_txt = new THREE.TextureLoader().load('modele/Samus/textures/body_d.tga.png'); //loader la texture
 
-				//stacy_txt.flipY = false;  we flip the texture so that its the right way up
+					//samus_txt.flipY = false;  we flip the texture so that its the right way up
 
-				const samus_mtl = new THREE.MeshPhongMaterial({
-  			map: samus_txt,						//mapper la texture sur l'objet
-  			color: 0xffffff,
-  			skinning: true	//important de le mettre lorsque la matérial devra être animé
-				});
+					const samus_mtl = new THREE.MeshPhongMaterial({
+  				map: samus_txt,						//mapper la texture sur l'objet
+  				color: 0xffffff,
+  				skinning: true	//important de le mettre lorsque la matérial devra être animé
+					});
+
 				// model
-				var loader = new FBXLoader();
-			loader.load( 'modele/Samus/source/Samus.fbx', function ( samus ) {		//charge le modèle dans object(perso)
-//models/fbx/Samba Dancing.fbx
+					var loader = new FBXLoader();
+					loader.load( 'modele/Samus/source/Samus.fbx', function ( samus ) {		//charge le modèle dans samus
 
-				samus.traverse( function ( child ) {			//la scène a pleins d'enfants (child) qui correspondent aux objets.
-																									//traverse permet de renvoyer tous les enfants de la scène en parcourant toute la scène
 
-					//ombre sur les objets finaux
-					if ( child.isMesh ) {				//si l'enfant est un objet, on lui donne l'action de pouvoir projeter de l'ombre et d'en recevoir
+						samus.traverse( function ( child ) {			//la scène a pleins d'enfants (child) qui correspondent aux objets.
+																										//traverse permet de renvoyer tous les enfants de la scène en parcourant toute la scène
 
-						child.castShadow = true;
-						child.receiveShadow = true;
-						child.material = samus_mtl;
-					}
+									//ombre sur les objets finaux
+									if ( child.isMesh ) {				//si l'enfant est un objet, on lui donne l'action de pouvoir projeter de l'ombre et d'en recevoir
 
-				} );
-				scene.add( samus );
-				mixer = new THREE.AnimationMixer( samus );		//tout objet qui devra être animé a besoin d'un mixeur = gestionnaire de mixage d'animation
-																											//ex: quand le perso court, ou quand le peso marche, etc...
+										child.castShadow = true;
+										child.receiveShadow = true;
+										child.material = samus_mtl;
+									}
 
-				//début animation
-				var action = mixer.clipAction( samus.animations[ 0 ] );	//actions du perso, on récupère l'animation de 0. En général c'est la seule animation existante
-				action.play();			//permet de faire jouer l'animation 1 fois ou en plusieurs fois selon son nombre d'utilisation
+						} );
+						mesh_samus = new THREE.Group();
+						scene.add( samus );
 
-			} );
+						/*
+						//début animation
+						mixer = new THREE.AnimationMixer( samus );		//tout objet qui devra être animé a besoin d'un mixeur = gestionnaire de mixage d'animation
+																													//ex: quand le perso court, ou quand le peso marche, etc...
+
+						var action = mixer.clipAction( samus.animations[ 0 ] );	//actions du perso, on récupère l'animation de 0. En général c'est la seule animation existante
+						action.play();			//permet de faire jouer l'animation 1 fois ou en plusieurs fois selon son nombre d'utilisation
+						*/
+					} );
 
 				renderer = new THREE.WebGLRenderer( { antialias: true } );
 				renderer.setPixelRatio( window.devicePixelRatio );
@@ -110,7 +144,7 @@
 				//
 
 				window.addEventListener( 'resize', onWindowResize, false );
-				getControl();
+			//	getControl();
 			}
 
 			function animate() {
@@ -122,11 +156,49 @@
 				if ( mixer ) mixer.update( delta );			//permet que l'animation du perso soit joué en continu
         //entrer le code
 
+
+
+				if ( controls.isLocked === true ) {
+
+
+					var time = performance.now();
+					var delta = ( time - prevTime ) / 1000;
+
+					velocity.x -= velocity.x * 10.0 * delta;
+					velocity.z -= velocity.z * 10.0 * delta;
+
+					velocity.y -= 9.8 * 100.0 * delta; // 100.0 = mass
+
+					direction.z = Number( moveForward ) - Number( moveBackward );
+					direction.x = Number( moveRight ) - Number( moveLeft );
+					direction.normalize(); // this ensures consistent movements in all directions
+
+					if ( moveForward || moveBackward ) velocity.z -= direction.z * 400.0 * delta;
+					if ( moveLeft || moveRight ) velocity.x -= direction.x * 400.0 * delta;
+
+
+					controls.moveRight( - velocity.x * delta );
+					controls.moveForward( - velocity.z * delta );
+
+					controls.getObject().position.y += ( velocity.y * delta ); // new behavior
+
+					if ( controls.getObject().position.y < 10 ) {
+
+						velocity.y = 0;
+						controls.getObject().position.y = 10;
+
+						canJump = true;
+
+					}
+
+					prevTime = time;
+
+				}
 				renderer.render( scene, camera );
 
 				stats.update();									//affichage constamment des fps
 			}
-
+/*
 			function getControl(){
 				var controls = new OrbitControls( camera, renderer.domElement );
 				controls.addEventListener( 'change', render );
@@ -135,7 +207,7 @@
 				controls.enablePan = true; //pour déplacer la caméra de droite à gauche
 
 			}
-
+*/
 			function render(){
 
 				lightHelper.update();								//enlever ces 2 lignes lors du rendu
@@ -196,6 +268,65 @@
 
         var shadowCameraHelper = new THREE.CameraHelper(spotLight.shadow.camera);
 				scene.add( shadowCameraHelper );
+			}
+
+			function playerControls(){								//configurer les touches d'actions du perso
+				var onKeyDown = function ( event ) {
+
+					switch ( event.keyCode ) {
+
+						case 90: // z
+							moveForward = true;
+							break;
+
+						case 81: // q
+							moveLeft = true;
+							break;
+
+						case 83: // s
+							moveBackward = true;
+							break;
+
+						case 68: // d
+							moveRight = true;
+							break;
+
+						case 32: // space
+							if ( canJump === true ) velocity.y += 350;
+							canJump = false;
+							break;
+
+					}
+
+				};
+
+				var onKeyUp = function ( event ) {
+
+					switch ( event.keyCode ) {
+
+						case 90: // z
+							moveForward = false;
+							break;
+
+						case 81: // q
+							moveLeft = false;
+							break;
+
+						case 83: // s
+							moveBackward = false;
+							break;
+
+						case 68: // d
+							moveRight = false;
+							break;
+
+					}
+
+				};
+
+				document.addEventListener( 'keydown', onKeyDown, false ); //si une touche est enfoncée,on accède au fonction onKeyDown
+				document.addEventListener( 'keyup', onKeyUp, false );	//si une touche vient d'être relachée, on accède au fonction onKeyUp
+
 			}
 		</script>
 
