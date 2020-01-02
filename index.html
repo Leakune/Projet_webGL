@@ -30,18 +30,16 @@
 			import { FBXLoader } from  './build/jsm/loaders/FBXLoader.js';
 
 			var container, stats; 								//variables pour afficher les frames
-			var camera, controls, scene, renderer ,clock;
-			var mixer;
+			var camera, controls, scene, renderer ,clock; //variables de base de la Scene
 			var gui;
       //faire des ligth shadows
-			var spotLight, ambient, lightHelper;
+			var spotLight, ambient, lightHelper; //lumiere
+			var loader,mixer; //variable de gestion animation et model fbx
 
-			var samus_txt;
-			var samus_mtl;
-			var loader;
+ 			var mesh_samus,animeSamus,samus_mtl,neededSOpacity = 1,ballanimation = 0,sam; //variables de gestions du personnage jouable
+			var ball = false; // etat du personnage de base (boule 3eme persone perso 1er personne)
 
- 			var mesh_samus;
-
+			var raycasterSol,raycasterFront,raycasterBack,raycasterLeft,raycasterRight; //variables de colisions
 
 			//actions du perso
 			var moveForward = false;
@@ -51,7 +49,7 @@
 			var canJump = false;
 			var transformation = false;
 
-			var raycaster;
+
 
 			var prevTime = performance.now();
 			var velocity = new THREE.Vector3();
@@ -84,14 +82,14 @@
 				scene.add( controls.getObject() );
 
 				playerControls();
-
-				raycaster = new THREE.Raycaster( new THREE.Vector3(), new THREE.Vector3( 0, - 1, 0 ), 0, 10 );
+				raycast();
 
 				mainLigthConf();
 
 				creatSol();
 
-				loaderSamus();
+				creatPersonnage();
+				console.log("mesh_samus est : "+mesh_samus);
 
 				renderer = new THREE.WebGLRenderer( { antialias: true } );
 				renderer.setPixelRatio( window.devicePixelRatio );
@@ -113,6 +111,58 @@
 			//	getControl();
 			}
 
+			function raycast(){
+				raycasterFront = new THREE.Raycaster( new THREE.Vector3(), new THREE.Vector3( 0, 0, 1 ), 0, 10 );
+				raycasterSol = new THREE.Raycaster( new THREE.Vector3(), new THREE.Vector3( 0, - 1, 0 ), 0, 10 );
+				raycasterLeft = new THREE.Raycaster( new THREE.Vector3(), new THREE.Vector3( -1, 0, 0 ), 0, 10 );
+				raycasterRight = new THREE.Raycaster( new THREE.Vector3(), new THREE.Vector3( 1, 0, 0 ), 0, 10 );
+				raycasterBack = new THREE.Raycaster( new THREE.Vector3(), new THREE.Vector3( 0, 0, -1 ), 0, 10 );
+			}
+
+			function creatPersonnage(){
+				//Texture
+					let samus_txt = new THREE.TextureLoader().load('modele/Samus/textures/body_d.tga.png'); //loader la texture
+
+					//samus_txt.flipY = false;  we flip the texture so that its the right way up
+
+					samus_mtl = new THREE.MeshPhongMaterial({
+  				map: samus_txt,						//mapper la texture sur l'objet
+  				color: 0xffffff,
+  				skinning: true,	//important de le mettre lorsque la matérial devra être animé
+					transparent: true, //permet la transparence
+					opacity : 1 // valeur d'opaciter alant de 0 a 1
+					});
+
+				// model
+					loader = new FBXLoader();
+					sam = loader.load( 'modele/Samus/source/Samus.fbx', function ( samus ) {		//charge le modèle dans samus
+
+
+						samus.traverse( function ( child ) {			//la scène a pleins d'enfants (child) qui correspondent aux objets.
+																										//traverse permet de renvoyer tous les enfants de la scène en parcourant toute la scène
+
+									//ombre sur les objets finaux
+									if ( child.isMesh ) {				//si l'enfant est un objet, on lui donne l'action de pouvoir projeter de l'ombre et d'en recevoir
+										child.castShadow = true;
+										child.receiveShadow = true;
+										child.material = samus_mtl;
+									}
+
+						} );
+						mesh_samus = new THREE.Group();
+						mesh_samus.add(samus);
+						scene.add( samus );
+
+
+						//début animation
+					 	mixer = new THREE.AnimationMixer( samus );		//tout objet qui devra être animé a besoin d'un mixeur = gestionnaire de mixage d'animation
+																													//ex: quand le perso court, ou quand le peso marche, etc...
+						animeSamus = mixer.clipAction( samus.animations[ 0 ] ); //actions du perso, on récupère l'animation de 0. En général c'est la seule animation existante
+						animeSamus.setLoop( THREE.LoopOnce ); //permet de faire jouer l'animation 1 fois
+						return samus;
+					} );
+			}
+
 			function animate() {
 
 				requestAnimationFrame( animate );
@@ -122,7 +172,9 @@
 				if ( mixer ) mixer.update( delta );			//permet que l'animation du perso soit joué en continu
         //entrer le code
 
-
+				if (samus_mtl.opacity>neededSOpacity){
+					samus_mtl.opacity-= 0.03;
+				}
 
 				if ( controls.isLocked === true ) {   //si le pointeur de souris est capturé dans notre fenêtre, on pourra faire bouger notre personnage
 
@@ -218,6 +270,19 @@
 				ligthHelper();
 			}
 
+			function morphanimation(){ // Fonction de l'animation de changement d'état / position camera
+
+				if (ball === true){
+					animeSamus.play().reset();
+					neededSOpacity = 0;
+				}
+				else {
+					neededSOpacity=1;
+					samus_mtl.opacity=1;
+					animeSamus.stop();
+				}
+			}
+
 			function creatSol(){
 				var planMaterial = new THREE.MeshPhongMaterial( { color: 0x808080, dithering: true } );
 				var plan = new THREE.PlaneBufferGeometry( 2000, 2000 );     //pour faire seulement le sol
@@ -263,10 +328,17 @@
 							canJump = false;
 							break;
 
-						case 13: //entrée
-							if(transformation === true) transformation = false;
-							transformation = true;
-							break;
+						case 65: // A
+							ballanimation += 1; // permet de ne pas changer de forme en boucle en maintennant la touche appuyer
+							if (ball === true && ballanimation === 1){
+								ball = false;
+								morphanimation();
+							}
+							else if (ball === false && ballanimation === 1){
+								ball = true;
+								morphanimation();
+							}
+
 					}
 
 				};
@@ -291,6 +363,9 @@
 							moveRight = false;
 							break;
 
+							case 65: // A
+								ballanimation = 0;
+
 					}
 
 				};
@@ -298,63 +373,6 @@
 				document.addEventListener( 'keydown', onKeyDown, false ); //si une touche est enfoncée,on accède au fonction onKeyDown
 				document.addEventListener( 'keyup', onKeyUp, false );	//si une touche vient d'être relachée, on accède au fonction onKeyUp
 
-			}
-			function loaderSamus(){
-				//Texture
-					samus_txt = new THREE.TextureLoader().load('modele/Samus/textures/body_d.tga.png'); //loader la texture
-
-					//samus_txt.flipY = false;  we flip the texture so that its the right way up
-
-					samus_mtl = new THREE.MeshPhongMaterial({
-  				map: samus_txt,						//mapper la texture sur l'objet
-  				color: 0xffffff,
-  				skinning: true	//important de le mettre lorsque la matérial devra être animé
-					});
-
-				//model
-				loader = new FBXLoader();
-				loader.load( 'modele/Samus/source/Samus.fbx', function ( samus ) {		//charge le modèle dans samus
-
-					if( transformation === false){
-						samus.traverse( function ( child ) {			//la scène a pleins d'enfants (child) qui correspondent aux objets.
-																										//traverse permet de renvoyer tous les enfants de la scène en parcourant toute la scène
-
-														//ombre sur les objets finaux
-								if ( child.isMesh ) {				//si l'enfant est un objet, on lui donne l'action de pouvoir projeter de l'ombre et d'en recevoir
-
-									child.castShadow = true;
-									child.receiveShadow = true;
-									child.material = samus_mtl;
-
-								}
-
-						} );
-				}
-				else if ( transformation == true) {
-
-					samus.traverse( function ( child ) {
-
-							if ( child.isMesh ) {
-
-								child.castShadow = true;
-								child.receiveShadow = true;
-								child.material = samus_mtl;
-								child.material.transparent = false;
-								child.material.opacity = 1;
-							}
-
-					} );
-					//début animation
-					mixer = new THREE.AnimationMixer( samus );		//tout objet qui devra être animé a besoin d'un mixeur = gestionnaire de mixage d'animation
-																												//ex: quand le perso court, ou quand le peso marche, etc...
-
-					var action = mixer.clipAction( samus.animations[ 0 ] );	//actions du perso, on récupère l'animation de 0. En général c'est la seule animation existante
-					action.play();			//permet de faire jouer l'animation 1 fois ou en plusieurs fois selon son nombre d'utilisation
-				}
-
-					mesh_samus = new THREE.Group();
-					scene.add( samus );
-				} );
 			}
 		</script>
 
