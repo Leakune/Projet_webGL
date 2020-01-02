@@ -36,6 +36,10 @@
       //faire des ligth shadows
 			var spotLight, ambient, lightHelper;
 
+			var samus_txt;
+			var samus_mtl;
+			var loader;
+
  			var mesh_samus;
 
 
@@ -45,6 +49,7 @@
 			var moveLeft = false;
 			var moveRight = false;
 			var canJump = false;
+			var transformation = false;
 
 			var raycaster;
 
@@ -86,46 +91,7 @@
 
 				creatSol();
 
-				//Texture
-					let samus_txt = new THREE.TextureLoader().load('modele/Samus/textures/body_d.tga.png'); //loader la texture
-
-					//samus_txt.flipY = false;  we flip the texture so that its the right way up
-
-					const samus_mtl = new THREE.MeshPhongMaterial({
-  				map: samus_txt,						//mapper la texture sur l'objet
-  				color: 0xffffff,
-  				skinning: true	//important de le mettre lorsque la matérial devra être animé
-					});
-
-				// model
-					var loader = new FBXLoader();
-					loader.load( 'modele/Samus/source/Samus.fbx', function ( samus ) {		//charge le modèle dans samus
-
-
-						samus.traverse( function ( child ) {			//la scène a pleins d'enfants (child) qui correspondent aux objets.
-																										//traverse permet de renvoyer tous les enfants de la scène en parcourant toute la scène
-
-									//ombre sur les objets finaux
-									if ( child.isMesh ) {				//si l'enfant est un objet, on lui donne l'action de pouvoir projeter de l'ombre et d'en recevoir
-
-										child.castShadow = true;
-										child.receiveShadow = true;
-										child.material = samus_mtl;
-									}
-
-						} );
-						mesh_samus = new THREE.Group();
-						scene.add( samus );
-
-						/*
-						//début animation
-						mixer = new THREE.AnimationMixer( samus );		//tout objet qui devra être animé a besoin d'un mixeur = gestionnaire de mixage d'animation
-																													//ex: quand le perso court, ou quand le peso marche, etc...
-
-						var action = mixer.clipAction( samus.animations[ 0 ] );	//actions du perso, on récupère l'animation de 0. En général c'est la seule animation existante
-						action.play();			//permet de faire jouer l'animation 1 fois ou en plusieurs fois selon son nombre d'utilisation
-						*/
-					} );
+				loaderSamus();
 
 				renderer = new THREE.WebGLRenderer( { antialias: true } );
 				renderer.setPixelRatio( window.devicePixelRatio );
@@ -190,6 +156,7 @@
 						canJump = true;
 
 					}
+
 
 					prevTime = time;
 
@@ -296,6 +263,10 @@
 							canJump = false;
 							break;
 
+						case 13: //entrée
+							if(transformation === true) transformation = false;
+							transformation = true;
+							break;
 					}
 
 				};
@@ -327,6 +298,63 @@
 				document.addEventListener( 'keydown', onKeyDown, false ); //si une touche est enfoncée,on accède au fonction onKeyDown
 				document.addEventListener( 'keyup', onKeyUp, false );	//si une touche vient d'être relachée, on accède au fonction onKeyUp
 
+			}
+			function loaderSamus(){
+				//Texture
+					samus_txt = new THREE.TextureLoader().load('modele/Samus/textures/body_d.tga.png'); //loader la texture
+
+					//samus_txt.flipY = false;  we flip the texture so that its the right way up
+
+					samus_mtl = new THREE.MeshPhongMaterial({
+  				map: samus_txt,						//mapper la texture sur l'objet
+  				color: 0xffffff,
+  				skinning: true	//important de le mettre lorsque la matérial devra être animé
+					});
+
+				//model
+				loader = new FBXLoader();
+				loader.load( 'modele/Samus/source/Samus.fbx', function ( samus ) {		//charge le modèle dans samus
+
+					if( transformation === false){
+						samus.traverse( function ( child ) {			//la scène a pleins d'enfants (child) qui correspondent aux objets.
+																										//traverse permet de renvoyer tous les enfants de la scène en parcourant toute la scène
+
+														//ombre sur les objets finaux
+								if ( child.isMesh ) {				//si l'enfant est un objet, on lui donne l'action de pouvoir projeter de l'ombre et d'en recevoir
+
+									child.castShadow = true;
+									child.receiveShadow = true;
+									child.material = samus_mtl;
+
+								}
+
+						} );
+				}
+				else if ( transformation == true) {
+
+					samus.traverse( function ( child ) {
+
+							if ( child.isMesh ) {
+
+								child.castShadow = true;
+								child.receiveShadow = true;
+								child.material = samus_mtl;
+								child.material.transparent = false;
+								child.material.opacity = 1;
+							}
+
+					} );
+					//début animation
+					mixer = new THREE.AnimationMixer( samus );		//tout objet qui devra être animé a besoin d'un mixeur = gestionnaire de mixage d'animation
+																												//ex: quand le perso court, ou quand le peso marche, etc...
+
+					var action = mixer.clipAction( samus.animations[ 0 ] );	//actions du perso, on récupère l'animation de 0. En général c'est la seule animation existante
+					action.play();			//permet de faire jouer l'animation 1 fois ou en plusieurs fois selon son nombre d'utilisation
+				}
+
+					mesh_samus = new THREE.Group();
+					scene.add( samus );
+				} );
 			}
 		</script>
 
