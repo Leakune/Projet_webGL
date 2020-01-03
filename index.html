@@ -36,9 +36,9 @@
 			var spotLight, ambient, lightHelper; //lumiere
 			var loader,mixer; //variable de gestion animation et model fbx
 
- 			var mesh_samus,animeSamus,samus_mtl,neededSOpacity = 1,ballanimation = 0,sam; //variables de gestions du personnage jouable
+ 			var samus, mesh_samus,animeSamus,samus_mtl,neededSOpacity = 1,ballanimation = 0,sam; //variables de gestions du personnage jouable
 			var ball = false; // etat du personnage de base (boule 3eme persone perso 1er personne)
-			var mesh_ball;
+			var ball_txt, ball_mtl, mesh_ball;
 			var raycasterSol,raycasterFront,raycasterBack,raycasterLeft,raycasterRight; //variables de colisions
 
 			//actions du perso
@@ -56,7 +56,7 @@
 		/*	var vertex = new THREE.Vector3();
 			var color = new THREE.Color();
 */
-
+			mesh_samus = new THREE.Group();
 			init();
 			animate();
 
@@ -76,6 +76,7 @@
 
 				pointerLock();
 				scene.add( controls.getObject() );
+				mesh_samus.add(controls);
 
 				playerControls();
 				raycast();
@@ -84,11 +85,11 @@
 
 				creatSol();
 
-				creatPersonnage();
+				samus = creatPersonnage();
 				console.log("mesh_samus est : "+mesh_samus);
 
 				createBall();
-
+				console.table(mesh_samus);
 				renderer = new THREE.WebGLRenderer( { antialias: true } );
 				renderer.setPixelRatio( window.devicePixelRatio );
 				renderer.setSize( window.innerWidth, window.innerHeight );
@@ -107,6 +108,7 @@
 
 				window.addEventListener( 'resize', onWindowResize, false );
 			//	getControl();
+			return samus;
 			}
 
 			function raycast(){
@@ -147,7 +149,7 @@
 								}
 
 					} );
-					mesh_samus = new THREE.Group();
+
 					mesh_samus.add(samus);
 					scene.add( samus );
 
@@ -166,17 +168,18 @@
 				var sphereWidthDivisions = 32;
         var sphereHeightDivisions = 16;
         var sphereGeo = new THREE.SphereBufferGeometry(sphereRadius, sphereWidthDivisions, sphereHeightDivisions);
-        var ball_txt = new THREE.TextureLoader().load( "texture/morphball_txt.jpg" );
-        var ball_mtl = new THREE.MeshPhongMaterial({
+       	ball_txt = new THREE.TextureLoader().load( "texture/morphball_txt.jpg" );
+        ball_mtl = new THREE.MeshPhongMaterial({
 					map: ball_txt,
 					skinning: true,
 					transparent: true,
-					opacity : 1
+					opacity : 0
 				});
         mesh_ball = new THREE.Mesh(sphereGeo, ball_mtl);
-        mesh_ball.castShadow = true;
-        mesh_ball.receiveShadow = true;
+        mesh_ball.castShadow = false;
+        mesh_ball.receiveShadow = false;
 				mesh_ball.position.y = 10;
+				mesh_samus.add(mesh_ball);
         scene.add(mesh_ball);
 			}
 
@@ -191,6 +194,8 @@
 
 				if (samus_mtl.opacity>neededSOpacity){
 					samus_mtl.opacity-= 0.03;
+					ball_mtl.opacity+= 0.03;
+
 				}
 
 				if ( controls.isLocked === true ) {   //si le pointeur de souris est capturé dans notre fenêtre, on pourra faire bouger notre personnage
@@ -235,15 +240,6 @@
 				stats.update();									//affichage constamment des fps
 			}
 
-			function orbit(){
-				controls = new OrbitControls( camera, renderer.domElement );
-				controls.addEventListener( 'change', render );
-				controls.minDistance = 20;
-				controls.maxDistance = 500; //limite maximum du zoom
-				controls.enablePan = true; //pour déplacer la caméra de droite à gauche
-				controls.target.copy( samus.position );					//on cible l'objet que la camèra va se tourner autour de lui
-				controls.update();
-			}
 			function pointerLock(){
 				controls = new PointerLockControls( camera, document.body );
 				document.body.addEventListener('click', function (){
@@ -299,13 +295,16 @@
 				if (ball === true){
 					animeSamus.play().reset();
 					neededSOpacity = 0;
-					orbit();
+					mesh_ball.castShadow = true;
+	        mesh_ball.receiveShadow = true;
+					sam.castShadow = false;
+					sam.receiveShadow = false;
 				}
 				else {
 					neededSOpacity=1;
 					samus_mtl.opacity=1;
+					ball_mtl.opacity=0;
 					animeSamus.stop();
-					pointerLock();
 				}
 			}
 
