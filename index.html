@@ -39,8 +39,8 @@
 			var ball = false; // etat du personnage de base (boule 3eme persone perso 1er personne)
 			var ball_txt, ball_mtl, mesh_ball;
 			var objects = [], raycasterSol,raycasterFront,raycasterBack,raycasterLeft,raycasterRight; //variables de colisions
-			var world, world_mesh;
-			var sky_geo, sky_txt, sky_mtl, sky;
+			var world, world_mesh, world_mtl;
+			var sky_geo, sky_mtls = [], sky_mtl, sky;
 			//actions du perso
 			var moveForward = false;
 			var moveBackward = false;
@@ -70,7 +70,7 @@
 
 				scene = new THREE.Scene();
 				clock = new THREE.Clock();
-				camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 1, 3000 );
+				camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 1, 10000 );
 				camera.position.set(0, 70, 5);
 				camera.lookAt( 0, 70, 10 );			//là où regarde la caméra
 
@@ -84,6 +84,7 @@
 				mainLigthConf();
 
 				createWorld();
+				createSol();
 				createSky();
 				samus = createPersonnage();
 				console.log("mesh_samus est : "+mesh_samus);
@@ -288,7 +289,7 @@
         scene.add( ambient );
 
 				//C'est le spot mais il y a aussi l'aré light, l'ampoule etc... C'est une lumière avec une forte intensité. Il faut la positionner
-				directionalLight = new THREE.DirectionalLight( 0xffffff, 30 );
+				directionalLight = new THREE.DirectionalLight( 0xffffff, 0.5 );
 
         //Première partie de la lumière
         directionalLight.position.set( 30, 1000, 35 );
@@ -323,12 +324,20 @@
 				}
 			}
 			function createSky(){
-				sky_geo = new THREE.SphereGeometry(100000, 25, 25);
-				sky_txt = new THREE.TextureLoader().load('texture/sky.jpg');
-				sky_mtl = new THREE.MeshPhongMaterial({map: sky_txt, side: THREE.BackSide});
+				sky_geo = new THREE.CubeGeometry(10000, 10000, 10000);
+				sky_mtls = [
+					new THREE.MeshBasicMaterial({map: new THREE.TextureLoader().load('texture/skybox/world/dawnmountain-xneg.png'), side:THREE.DoubleSide}),
+					new THREE.MeshBasicMaterial({map: new THREE.TextureLoader().load('texture/skybox/world/dawnmountain-xpos.png'), side:THREE.DoubleSide}),
+					new THREE.MeshBasicMaterial({map: new THREE.TextureLoader().load('texture/skybox/world/dawnmountain-yneg.png'), side:THREE.DoubleSide}),
+					new THREE.MeshBasicMaterial({map: new THREE.TextureLoader().load('texture/skybox/world/dawnmountain-ypos.png'), side:THREE.DoubleSide}),
+					new THREE.MeshBasicMaterial({map: new THREE.TextureLoader().load('texture/skybox/world/dawnmountain-zneg.png'), side:THREE.DoubleSide}),
+					new THREE.MeshBasicMaterial({map: new THREE.TextureLoader().load('texture/skybox/world/dawnmountain-zpos.png'), side:THREE.DoubleSide})
+				];
+				sky_mtl = new THREE.MeshFaceMaterial(sky_mtls);
 				sky = new THREE.Mesh(sky_geo, sky_mtl);
 				scene.add(sky);
 			}
+
 			function createWorld(){
 				//Les 18 textures à loader
 			  var world_mtl1 = new THREE.MeshPhongMaterial({map: new THREE.TextureLoader().load('modele/World/tallonoverworld/textures/Blue_Glow_Plant.png')});
@@ -351,6 +360,7 @@
 				var world_mtl18 = new THREE.MeshPhongMaterial({map: new THREE.TextureLoader().load('modele/World/tallonoverworld/textures/Waterfall.png')});
 
 				var world_mtls = [world_mtl1, world_mtl2, world_mtl3, world_mtl4, world_mtl5, world_mtl6, world_mtl7, world_mtl8, world_mtl9, world_mtl10, world_mtl11, world_mtl12, world_mtl13, world_mtl14, world_mtl15, world_mtl16, world_mtl17, world_mtl18];
+				world_mtl = new THREE.MeshFaceMaterial(world_mtls);
 			  // model world
 			  loaderWorld = new FBXLoader();
 			  world = loaderWorld.load( 'modele/World/tallonoverworld/source/World.fbx', function ( world_mesh ) {		//charge le modèle dans samus
@@ -363,14 +373,15 @@
 			          if ( child.isMesh ) {				//si l'enfant est un objet, on lui donne l'action de pouvoir projeter de l'ombre et d'en recevoir
 			            child.castShadow = true;
 			            child.receiveShadow = true;
-			            child.material = world_mtls;
+			            child.material = world_mtl;
 			          }
 
 			    } );
 					scene.add(world_mesh);
 			  } );
 			}
-/*
+
+
 			function createSol(){
 				var planMaterial = new THREE.MeshPhongMaterial( { color: 0x808080, dithering: true } );
 				var plan = new THREE.PlaneBufferGeometry( 2000, 2000 );     //pour faire seulement le sol
@@ -381,7 +392,7 @@
 				sol.receiveShadow = true;															//le sol va recevoir de l'ombre
 				scene.add( sol );
 			}
-*/
+
 			function ligthHelper(){//a suprimmer avant de rendre
 				var lightHelper = new THREE.DirectionalLightHelper(directionalLight);
 				scene.add( lightHelper );
