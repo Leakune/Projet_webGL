@@ -5,19 +5,50 @@
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" >
 		<style media="screen">
-
-			body{
-				margin: 0;
-				padding: 0
-			}
-			canvas {
+			#blocker {
+				position: absolute;
 				width: 100%;
-				height: 100%
+				height: 100%;
+				background-color: rgba(0,0,0,0.5);
+			}
+			#instructions {
+				width: 100%;
+				height: 100%;
+				display: -webkit-box;
+				display: -moz-box;
+				display: box;
+				-webkit-box-orient: horizontal;
+				-moz-box-orient: horizontal;
+				box-orient: horizontal;
+				-webkit-box-pack: center;
+				-moz-box-pack: center;
+				box-pack: center;
+				-webkit-box-align: center;
+				-moz-box-align: center;
+				box-align: center;
+				color: #ffffff;
+				text-align: center;
+				font-family: Arial;
+				font-size: 14px;
+				line-height: 24px;
+				cursor: pointer;
 			}
 
 		</style>
 	</head>
 	<body>
+	<div id="blocker">
+
+		<div id="instructions">
+			<span style="font-size:36px">Click to play</span>
+			<br /><br />
+			Move: ZSQD<br/>
+			Jump: SPACE<br/>
+			Transform : A<br/>
+		</div>
+
+	</div>
+
 		<script type="module">
 
 			import * as THREE from './build/three.module.js';
@@ -74,7 +105,7 @@
 				camera.position.set(0, 70, 5);
 				camera.lookAt( 0, 70, 10 );			//là où regarde la caméra
 
-				pointerLock();
+				Menu();
 				scene.add( controls.getObject() );
 				mesh_samus.add(controls);
 
@@ -84,8 +115,12 @@
 				mainLigthConf();
 
 				createWorld();
-				createSol();
+				//createSol();
 				createSky();
+				samus = createPersonnage();
+
+				Musique();
+
 				samus = createPersonnage();
 				console.log("mesh_samus est : "+mesh_samus);
 
@@ -258,13 +293,6 @@
 				stats.update();									//affichage constamment des fps
 			}
 
-			function pointerLock(){
-				controls = new PointerLockControls( camera, document.body );
-				document.body.addEventListener('click', function (){
-					controls.lock();
-				});
-			}
-
 			function render(){
 
 				lightHelper.update();								//enlever ces 2 lignes lors du rendu
@@ -340,6 +368,7 @@
 
 			function createWorld(){
 				//Les 18 textures à loader
+				/*
 			  var world_mtl1 = new THREE.MeshPhongMaterial({map: new THREE.TextureLoader().load('modele/World/tallonoverworld/textures/Blue_Glow_Plant.png')});
 				var world_mtl2 = new THREE.MeshPhongMaterial({map: new THREE.TextureLoader().load('modele/World/tallonoverworld/textures/Door.png')});
 				var world_mtl3 = new THREE.MeshPhongMaterial({map: new THREE.TextureLoader().load('modele/World/tallonoverworld/textures/Door_Shield.png')});
@@ -362,8 +391,9 @@
 				var world_mtls = [world_mtl1, world_mtl2, world_mtl3, world_mtl4, world_mtl5, world_mtl6, world_mtl7, world_mtl8, world_mtl9, world_mtl10, world_mtl11, world_mtl12, world_mtl13, world_mtl14, world_mtl15, world_mtl16, world_mtl17, world_mtl18];
 				world_mtl = new THREE.MeshFaceMaterial(world_mtls);
 			  // model world
+				*/
 			  loaderWorld = new FBXLoader();
-			  world = loaderWorld.load( 'modele/World/tallonoverworld/source/World.fbx', function ( world_mesh ) {		//charge le modèle dans samus
+			  world = loaderWorld.load( 'modele/environnement/aztecmayan/sceene4.fbx', function ( world_mesh ) {		//charge le modèle dans samus
 
 
 			    world_mesh.traverse( function ( child ) {			//la scène a pleins d'enfants (child) qui correspondent aux objets.
@@ -373,7 +403,9 @@
 			          if ( child.isMesh ) {				//si l'enfant est un objet, on lui donne l'action de pouvoir projeter de l'ombre et d'en recevoir
 			            child.castShadow = true;
 			            child.receiveShadow = true;
-			            child.material = world_mtl;
+			            //child.material = world_mtl;
+									child.scale.set(4,4,4);
+									child.position.z = 200;
 			          }
 
 			    } );
@@ -381,7 +413,7 @@
 			  } );
 			}
 
-
+/*
 			function createSol(){
 				var planMaterial = new THREE.MeshPhongMaterial( { color: 0x808080, dithering: true } );
 				var plan = new THREE.PlaneBufferGeometry( 2000, 2000 );     //pour faire seulement le sol
@@ -392,7 +424,41 @@
 				sol.receiveShadow = true;															//le sol va recevoir de l'ombre
 				scene.add( sol );
 			}
+*/
+			function Menu(){
+				controls = new PointerLockControls( camera, document.body );
+				var blocker = document.getElementById( 'blocker' );
+				var instructions = document.getElementById( 'instructions' );
+				instructions.addEventListener( 'click', function () {
+					controls.lock();
+				}, false );
+				controls.addEventListener( 'lock', function () {
+					instructions.style.display = 'none';
+					blocker.style.display = 'none';
+				} );
+				controls.addEventListener( 'unlock', function () {
+					blocker.style.display = 'block';
+					instructions.style.display = '';
+				} );
+				scene.add( controls.getObject() );
+			}
 
+			function Musique(){
+				var listener = new THREE.AudioListener();
+				camera.add( listener );
+
+				// create a global audio source
+				var sound = new THREE.Audio( listener );
+
+				// load a sound and set it as the Audio object's buffer
+				var audioLoader = new THREE.AudioLoader();
+				audioLoader.load( 'sounds/Ambiance_azteque.ogg', function( buffer ) {
+					sound.setBuffer( buffer );
+					sound.setLoop( true );
+					sound.setVolume( 0.3 );
+					sound.play();
+				});
+			}
 			function ligthHelper(){//a suprimmer avant de rendre
 				var lightHelper = new THREE.DirectionalLightHelper(directionalLight);
 				scene.add( lightHelper );
