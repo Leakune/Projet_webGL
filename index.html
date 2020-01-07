@@ -115,6 +115,7 @@
 
 				creatSol();
 
+				// Menu
 				var blocker = document.getElementById( 'blocker' );
 				var instructions = document.getElementById( 'instructions' );
 				instructions.addEventListener( 'click', function () {
@@ -129,6 +130,22 @@
 					instructions.style.display = '';
 				} );
 				scene.add( controls.getObject() );
+
+				// Musique
+				var listener = new THREE.AudioListener();
+				camera.add( listener );
+
+				// create a global audio source
+				var sound = new THREE.Audio( listener );
+
+				// load a sound and set it as the Audio object's buffer
+				var audioLoader = new THREE.AudioLoader();
+				audioLoader.load( 'sounds/Ambiance_azteque.ogg', function( buffer ) {
+					sound.setBuffer( buffer );
+					sound.setLoop( true );
+					sound.setVolume( 0.3 );
+					sound.play();
+				});
 
 				samus = creatPersonnage();
 				console.log("mesh_samus est : "+mesh_samus);
