@@ -5,19 +5,49 @@
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" >
 		<style media="screen">
-
-			body{
-				margin: 0;
-				padding: 0
-			}
-			canvas {
+			#blocker {
+				position: absolute;
 				width: 100%;
-				height: 100%
+				height: 100%;
+				background-color: rgba(0,0,0,0.5);
+			}
+			#instructions {
+				width: 100%;
+				height: 100%;
+				display: -webkit-box;
+				display: -moz-box;
+				display: box;
+				-webkit-box-orient: horizontal;
+				-moz-box-orient: horizontal;
+				box-orient: horizontal;
+				-webkit-box-pack: center;
+				-moz-box-pack: center;
+				box-pack: center;
+				-webkit-box-align: center;
+				-moz-box-align: center;
+				box-align: center;
+				color: #ffffff;
+				text-align: center;
+				font-family: Arial;
+				font-size: 14px;
+				line-height: 24px;
+				cursor: pointer;
 			}
 
 		</style>
 	</head>
 	<body>
+	<div id="blocker">
+
+		<div id="instructions">
+			<span style="font-size:36px">Click to play</span>
+			<br /><br />
+			Move: ZSQD<br/>
+			Jump: SPACE<br/>
+			Transform : A<br/>
+		</div>
+
+	</div>
 
 		<script type="module">
 
@@ -25,33 +55,76 @@
 			import Stats from './build/jsm/libs/stats.module.js';
 
     	import { GUI } from './build/jsm/libs/dat.gui.module.js';
-    	import { OrbitControls } from './build/jsm/controls/OrbitControls.js';
+    	import { OrbitControls } from './build/jsm/controls/OrbitControls.js';      //pour contrôler la boule en vue 3ème personne
+			import { PointerLockControls } from './build/jsm/controls/PointerLockControls.js'; //pour contrôler samus en vue 1ère personne
 			import { FBXLoader } from  './build/jsm/loaders/FBXLoader.js';
 
-			var camera, scene, renderer ,clock;
+			var container, stats; 								//variables pour afficher les frames
+			var camera, controls, scene, renderer ,clock; //variables de base de la Scene
 			var gui;
-
       //faire des ligth shadows
-			var spotLight, ambient;
+			var directionalLight, ambient, lightHelper; //lumiere
+			var loader, loaderWorld, mixer; //variable de gestion animation et model fbx
+
+ 			var samus, mesh_samus,animeSamus,samus_mtl, samus_txt,neededSOpacity = 1,ballanimation = 0,sam; //variables de gestions du personnage jouable
+			var ball = false; // etat du personnage de base (boule 3eme persone perso 1er personne)
+			var ball_txt, ball_mtl, mesh_ball;
+			var objects = [], raycasterSol,raycasterFront,raycasterBack,raycasterLeft,raycasterRight; //variables de colisions
+			var world, world_mesh, world_mtl;
+			var sky_geo, sky_mtls = [], sky_mtl, sky;
+			//actions du perso
+			var moveForward = false;
+			var moveBackward = false;
+			var moveLeft = false;
+			var moveRight = false;
+			var canJump = false;
 
 
+
+			var prevTime = performance.now();
+			var velocity = new THREE.Vector3();
+			var direction = new THREE.Vector3();
+		/*	var vertex = new THREE.Vector3();
+			var color = new THREE.Color();
+*/
+			mesh_samus = new THREE.Group();
 			init();
 			animate();
 
 			function init() {
+
+				// stats
+				container = document.createElement( 'div' );
+				document.body.appendChild( container );
+				stats = new Stats();										//affichage des fps dans container
+				container.appendChild( stats.dom );
+
 				scene = new THREE.Scene();
 				clock = new THREE.Clock();
-				camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 1, 3000 );
-				camera.position.y = 400;
-				scene.add(camera);
+				camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 1, 10000 );
+				camera.position.set(0, 70, 5);
+				camera.lookAt( 0, 70, 10 );			//là où regarde la caméra
+
+				Menu();
+				scene.add( controls.getObject() );
+				mesh_samus.add(controls);
+
+				playerControls();
+				raycast();
+
 				mainLigthConf();
 
-				creatSol();
-        //
+				createWorld();
+				//createSol();
+				createSky();
+				samus = createPersonnage();
 
-          //entrer le code
+				Musique();
 
-				//
+				samus = createPersonnage();
+				console.log("mesh_samus est : "+mesh_samus);
+
+				createBall();
 
 				renderer = new THREE.WebGLRenderer( { antialias: true } );
 				renderer.setPixelRatio( window.devicePixelRatio );
@@ -70,29 +143,160 @@
 				//
 
 				window.addEventListener( 'resize', onWindowResize, false );
-				getControl();
+			return samus;
+			}
+			function createPersonnage(){
+			  /*SAMUS*/
+			  //Texture
+			  samus_txt = new THREE.TextureLoader().load('modele/Samus/textures/body_d.tga.png'); //loader la texture
+
+			  //samus_txt.flipY = false;  we flip the texture so that its the right way up
+
+			  samus_mtl = new THREE.MeshPhongMaterial({
+			    map: samus_txt,						//mapper la texture sur l'objet
+			    color: 0xffffff,
+			    skinning: true,	//important de le mettre lorsque la matérial devra être animé
+			    transparent: true, //permet la transparence
+			    opacity : 1 // valeur d'opaciter allant de 0 a 1
+			  });
+
+			  // model
+			  loader = new FBXLoader();
+			  sam = loader.load( 'modele/Samus/source/Samus.fbx', function ( samus ) {		//charge le modèle dans samus
+
+
+			    samus.traverse( function ( child ) {			//la scène a pleins d'enfants (child) qui correspondent aux objets.
+			                                            //traverse permet de renvoyer tous les enfants de la scène en parcourant toute la scène
+
+			          //ombre sur les objets finaux
+			          if ( child.isMesh ) {				//si l'enfant est un objet, on lui donne l'action de pouvoir projeter de l'ombre et d'en recevoir
+			            child.castShadow = true;
+			            child.receiveShadow = true;
+			            child.material = samus_mtl;
+			          }
+
+			    } );
+
+			    mesh_samus.add(samus);
+			    scene.add( samus );
+
+
+			    //début animation
+			    mixer = new THREE.AnimationMixer( samus );		//tout objet qui devra être animé a besoin d'un mixeur = gestionnaire de mixage d'animation
+			                                                  //ex: quand le perso court, ou quand le peso marche, etc...
+			    animeSamus = mixer.clipAction( samus.animations[ 0 ] ); //actions du perso, on récupère l'animation de 0. En général c'est la seule animation existante
+			    animeSamus.setLoop( THREE.LoopOnce ); //permet de faire jouer l'animation 1 fois
+			    return samus;
+			  } );
+			}
+
+			function createBall(){
+			  var sphereRadius = 12;
+			  var sphereWidthDivisions = 32;
+			  var sphereHeightDivisions = 16;
+			  var sphereGeo = new THREE.SphereBufferGeometry(sphereRadius, sphereWidthDivisions, sphereHeightDivisions);
+			  ball_txt = new THREE.TextureLoader().load( "texture/morphball_txt.jpg" );
+			  ball_mtl = new THREE.MeshPhongMaterial({
+			    map: ball_txt,
+			    skinning: true,
+			    transparent: true,
+			    opacity : 0
+			  });
+			  mesh_ball = new THREE.Mesh(sphereGeo, ball_mtl);
+			  mesh_ball.castShadow = false;
+			  mesh_ball.receiveShadow = false;
+			  mesh_ball.position.y = 10;
+			  mesh_samus.add(mesh_ball);
+			  scene.add(mesh_ball);
+			}
+
+			function raycast(){
+				raycasterFront = new THREE.Raycaster( new THREE.Vector3(), new THREE.Vector3( 0, 0, 1 ), 0, 10 );
+				raycasterSol = new THREE.Raycaster( new THREE.Vector3(), new THREE.Vector3( 0, - 1, 0 ), 0, 10 );
+				raycasterLeft = new THREE.Raycaster( new THREE.Vector3(), new THREE.Vector3( -1, 0, 0 ), 0, 10 );
+				raycasterRight = new THREE.Raycaster( new THREE.Vector3(), new THREE.Vector3( 1, 0, 0 ), 0, 10 );
+				raycasterBack = new THREE.Raycaster( new THREE.Vector3(), new THREE.Vector3( 0, 0, -1 ), 0, 10 );
 			}
 
 			function animate() {
 
 				requestAnimationFrame( animate );
 
+				var delta = clock.getDelta();		//delta est important
+
+				if ( mixer ) mixer.update( delta );			//permet que l'animation du perso soit joué en continu
         //entrer le code
 
+				if (samus_mtl.opacity>neededSOpacity){
+					samus_mtl.opacity-= 0.03;
+					ball_mtl.opacity+= 0.03;
+
+				}
+
+				if ( controls.isLocked === true ) {   //si le pointeur de souris est capturé dans notre fenêtre, on pourra faire bouger notre personnage
+
+					raycasterSol.ray.origin.copy( controls.getObject().position );
+					raycasterSol.ray.origin.y -= 10;
+					/* raycaster = c'est la gestion de collision
+					c'est un rayon qui évalue la distance
+					si on descend pas de 10 on lévite
+					*/
+					var intersections = raycasterFront.intersectObjects( objects ); //calculer si on a on touché un objet sur différents côtés = tableau d'objets
+					intersections.push(raycasterSol.intersectObjects( objects ));
+					intersections.push(raycasterLeft.intersectObjects( objects ));
+					intersections.push(raycasterRight.intersectObjects( objects ));
+					intersections.push(raycasterBack.intersectObjects( objects ));
+
+
+					var time = performance.now();
+					var delta = ( time - prevTime ) / 1000;
+
+					velocity.x -= velocity.x * 10.0 * delta;
+					velocity.z -= velocity.z * 10.0 * delta;
+
+					velocity.y -= 9.8 * 100.0 * delta; // calcul de la gravité sur Terre
+
+					direction.z = Number( moveForward ) - Number( moveBackward );
+					direction.x = Number( moveRight ) - Number( moveLeft );
+					direction.normalize(); // cela assure des mouvements constants dans tous les directions
+
+					if ( moveForward || moveBackward ) velocity.z -= direction.z * 1500.0 * delta; //on paramètre les vitesses de déplacement
+					if ( moveLeft || moveRight ) velocity.x -= direction.x * 1500.0 * delta;
+
+					if ( intersections[0].length > 0 ) { //si ma camera est sur un objet, on ne chute plus
+
+						velocity.y = Math.max( 0, velocity.y );
+						canJump = true;
+
+					}
+
+					controls.moveRight( - velocity.x * delta ); //déplacements latéraux
+					controls.moveForward( - velocity.z * delta ); //déplacements avant-arrière
+
+					controls.getObject().position.y += ( velocity.y * delta ); // new behavior
+
+					if ( controls.getObject().position.y < 70 ) {	//si le personnage n'a pas sauté
+
+						velocity.y = 0;
+						controls.getObject().position.y = 70;	//on paramètre la hauteur de notre camera
+
+						canJump = true;
+
+					}
+
+
+					prevTime = time;
+
+				}
 				renderer.render( scene, camera );
 
-			}
-
-			function getControl(){
-				var controls = new OrbitControls( camera, renderer.domElement );
-				controls.addEventListener( 'change', render );
-				controls.minDistance = 20;
-				controls.maxDistance = 500; //limite maximum du zoom
-				controls.enablePan = true; //pour déplacer la caméra de droite à gauche
-
+				stats.update();									//affichage constamment des fps
 			}
 
 			function render(){
+
+				lightHelper.update();								//enlever ces 2 lignes lors du rendu
+				shadowCameraHelper.update();
 
 				renderer.render( scene, camera );
 
@@ -113,26 +317,104 @@
         scene.add( ambient );
 
 				//C'est le spot mais il y a aussi l'aré light, l'ampoule etc... C'est une lumière avec une forte intensité. Il faut la positionner
-				spotLight = new THREE.SpotLight( 0xffffff, 1 );
+				directionalLight = new THREE.DirectionalLight( 0xffffff, 0.5 );
 
         //Première partie de la lumière
-        spotLight.position.set( 30, 100, 35 );
-        spotLight.angle = Math.PI / 4;
-        spotLight.penumbra = 0.05;
-        spotLight.decay = 2;
-        spotLight.distance = 200;
+        directionalLight.position.set( 30, 1000, 35 );
 
         //Deuxième partie de la lumière qui sont les ombres.
-        spotLight.castShadow = true;
-        spotLight.shadow.mapSize.width = 1024; //C'est important de régler l'ombre, plus on met une grosse valeur, plus c'est beau mais c'est plus long. Mettre des puissances de 2.
-        spotLight.shadow.mapSize.height = 1024;
-        spotLight.shadow.camera.near = 10; //C'est la zone où il y aura des ombres.
-        spotLight.shadow.camera.far = 200;
-        scene.add( spotLight );
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 1024; //C'est important de régler l'ombre, plus on met une grosse valeur, plus c'est beau mais c'est plus long. Mettre des puissances de 2.
+        directionalLight.shadow.mapSize.height = 1024;
+        directionalLight.shadow.camera.near = 10; //C'est la zone où il y aura des ombres.
+        directionalLight.shadow.camera.far = 200;
+        scene.add( directionalLight );
 				ligthHelper();
 			}
 
-			function creatSol(){
+			function morphanimation(){ // Fonction de l'animation de changement d'état / position camera
+
+				if (ball === true){
+					animeSamus.play().reset();
+					neededSOpacity = 0;
+					mesh_ball.castShadow = true;
+	        mesh_ball.receiveShadow = true;
+					samus.castShadow = false;
+					samus.receiveShadow = false;
+				}
+				else {
+					neededSOpacity=1;
+					mesh_ball.castShadow = false;
+	        mesh_ball.receiveShadow = false;
+					samus_mtl.opacity=1;
+					ball_mtl.opacity=0;
+					animeSamus.stop();
+				}
+			}
+			function createSky(){
+				sky_geo = new THREE.CubeGeometry(10000, 10000, 10000);
+				sky_mtls = [
+					new THREE.MeshBasicMaterial({map: new THREE.TextureLoader().load('texture/skybox/world/dawnmountain-xneg.png'), side:THREE.DoubleSide}),
+					new THREE.MeshBasicMaterial({map: new THREE.TextureLoader().load('texture/skybox/world/dawnmountain-xpos.png'), side:THREE.DoubleSide}),
+					new THREE.MeshBasicMaterial({map: new THREE.TextureLoader().load('texture/skybox/world/dawnmountain-yneg.png'), side:THREE.DoubleSide}),
+					new THREE.MeshBasicMaterial({map: new THREE.TextureLoader().load('texture/skybox/world/dawnmountain-ypos.png'), side:THREE.DoubleSide}),
+					new THREE.MeshBasicMaterial({map: new THREE.TextureLoader().load('texture/skybox/world/dawnmountain-zneg.png'), side:THREE.DoubleSide}),
+					new THREE.MeshBasicMaterial({map: new THREE.TextureLoader().load('texture/skybox/world/dawnmountain-zpos.png'), side:THREE.DoubleSide})
+				];
+				sky_mtl = new THREE.MeshFaceMaterial(sky_mtls);
+				sky = new THREE.Mesh(sky_geo, sky_mtl);
+				scene.add(sky);
+			}
+
+			function createWorld(){
+				//Les 18 textures à loader
+				/*
+			  var world_mtl1 = new THREE.MeshPhongMaterial({map: new THREE.TextureLoader().load('modele/World/tallonoverworld/textures/Blue_Glow_Plant.png')});
+				var world_mtl2 = new THREE.MeshPhongMaterial({map: new THREE.TextureLoader().load('modele/World/tallonoverworld/textures/Door.png')});
+				var world_mtl3 = new THREE.MeshPhongMaterial({map: new THREE.TextureLoader().load('modele/World/tallonoverworld/textures/Door_Shield.png')});
+				var world_mtl4 = new THREE.MeshPhongMaterial({map: new THREE.TextureLoader().load('modele/World/tallonoverworld/textures/Metal.png')});
+				var world_mtl5 = new THREE.MeshPhongMaterial({map: new THREE.TextureLoader().load('modele/World/tallonoverworld/textures/Plant.png')});
+				var world_mtl6 = new THREE.MeshPhongMaterial({map: new THREE.TextureLoader().load('modele/World/tallonoverworld/textures/Rocks.png')});
+				var world_mtl7 = new THREE.MeshPhongMaterial({map: new THREE.TextureLoader().load('modele/World/tallonoverworld/textures/Ship.png')});
+				var world_mtl8 = new THREE.MeshPhongMaterial({map: new THREE.TextureLoader().load('modele/World/tallonoverworld/textures/Ship_Glow.png')});
+				var world_mtl9 = new THREE.MeshPhongMaterial({map: new THREE.TextureLoader().load('modele/World/tallonoverworld/textures/Ship_Glow_Alpha.png')});
+				var world_mtl10 = new THREE.MeshPhongMaterial({map: new THREE.TextureLoader().load('modele/World/tallonoverworld/textures/Terrain_Island.png')});
+				var world_mtl11 = new THREE.MeshPhongMaterial({map: new THREE.TextureLoader().load('modele/World/tallonoverworld/textures/Terrain_Lakebed.png')});
+				var world_mtl12 = new THREE.MeshPhongMaterial({map: new THREE.TextureLoader().load('modele/World/tallonoverworld/textures/Terrain_Landing.png')});
+				var world_mtl13 = new THREE.MeshPhongMaterial({map: new THREE.TextureLoader().load('modele/World/tallonoverworld/textures/Terrain_Lefel_2.png')});
+				var world_mtl14 = new THREE.MeshPhongMaterial({map: new THREE.TextureLoader().load('modele/World/tallonoverworld/textures/Terrain_Outer.png')});
+				var world_mtl15 = new THREE.MeshPhongMaterial({map: new THREE.TextureLoader().load('modele/World/tallonoverworld/textures/Thrusters.png')});
+				var world_mtl16 = new THREE.MeshPhongMaterial({map: new THREE.TextureLoader().load('modele/World/tallonoverworld/textures/Water.png')});
+				var world_mtl17 = new THREE.MeshPhongMaterial({map: new THREE.TextureLoader().load('modele/World/tallonoverworld/textures/Water_Lower.png')});
+				var world_mtl18 = new THREE.MeshPhongMaterial({map: new THREE.TextureLoader().load('modele/World/tallonoverworld/textures/Waterfall.png')});
+
+				var world_mtls = [world_mtl1, world_mtl2, world_mtl3, world_mtl4, world_mtl5, world_mtl6, world_mtl7, world_mtl8, world_mtl9, world_mtl10, world_mtl11, world_mtl12, world_mtl13, world_mtl14, world_mtl15, world_mtl16, world_mtl17, world_mtl18];
+				world_mtl = new THREE.MeshFaceMaterial(world_mtls);
+			  // model world
+				*/
+			  loaderWorld = new FBXLoader();
+			  world = loaderWorld.load( 'modele/environnement/aztecmayan/sceene4.fbx', function ( world_mesh ) {		//charge le modèle dans samus
+
+
+			    world_mesh.traverse( function ( child ) {			//la scène a pleins d'enfants (child) qui correspondent aux objets.
+			                                            //traverse permet de renvoyer tous les enfants de la scène en parcourant toute la scène
+
+			          //ombre sur les objets finaux
+			          if ( child.isMesh ) {				//si l'enfant est un objet, on lui donne l'action de pouvoir projeter de l'ombre et d'en recevoir
+			            child.castShadow = true;
+			            child.receiveShadow = true;
+			            //child.material = world_mtl;
+									child.scale.set(4,4,4);
+									child.position.z = 200;
+			          }
+
+			    } );
+					scene.add(world_mesh);
+			  } );
+			}
+
+/*
+			function createSol(){
 				var planMaterial = new THREE.MeshPhongMaterial( { color: 0x808080, dithering: true } );
 				var plan = new THREE.PlaneBufferGeometry( 2000, 2000 );     //pour faire seulement le sol
 
@@ -142,11 +424,120 @@
 				sol.receiveShadow = true;															//le sol va recevoir de l'ombre
 				scene.add( sol );
 			}
+*/
+			function Menu(){
+				controls = new PointerLockControls( camera, document.body );
+				var blocker = document.getElementById( 'blocker' );
+				var instructions = document.getElementById( 'instructions' );
+				instructions.addEventListener( 'click', function () {
+					controls.lock();
+				}, false );
+				controls.addEventListener( 'lock', function () {
+					instructions.style.display = 'none';
+					blocker.style.display = 'none';
+				} );
+				controls.addEventListener( 'unlock', function () {
+					blocker.style.display = 'block';
+					instructions.style.display = '';
+				} );
+				scene.add( controls.getObject() );
+			}
 
+			function Musique(){
+				var listener = new THREE.AudioListener();
+				camera.add( listener );
+
+				// create a global audio source
+				var sound = new THREE.Audio( listener );
+
+				// load a sound and set it as the Audio object's buffer
+				var audioLoader = new THREE.AudioLoader();
+				audioLoader.load( 'sounds/Ambiance_azteque.ogg', function( buffer ) {
+					sound.setBuffer( buffer );
+					sound.setLoop( true );
+					sound.setVolume( 0.3 );
+					sound.play();
+				});
+			}
 			function ligthHelper(){//a suprimmer avant de rendre
-				var lightHelper = new THREE.SpotLightHelper(spotLight);
+				var lightHelper = new THREE.DirectionalLightHelper(directionalLight);
+				scene.add( lightHelper );
 
-        var shadowCameraHelper = new THREE.CameraHelper(spotLight.shadow.camera);
+        var shadowCameraHelper = new THREE.CameraHelper(directionalLight.shadow.camera);
+				scene.add( shadowCameraHelper );
+			}
+
+			function playerControls(){								//configurer les touches d'actions du perso
+				var onKeyDown = function ( event ) {
+
+					switch ( event.keyCode ) {
+
+						case 90: // z
+							moveForward = true;
+							break;
+
+						case 81: // q
+							moveLeft = true;
+							break;
+
+						case 83: // s
+							moveBackward = true;
+							break;
+
+						case 68: // d
+							moveRight = true;
+							break;
+
+						case 32: // space
+							if ( canJump === true ) velocity.y += 350;
+							canJump = false;
+							break;
+
+						case 65: // A
+							ballanimation += 1; // permet de ne pas changer de forme en boucle en maintenant la touche appuyer
+							if (ball === true && ballanimation === 1){
+								ball = false;
+								morphanimation();
+							}
+							else if (ball === false && ballanimation === 1){
+								ball = true;
+								morphanimation();
+							}
+
+					}
+
+				};
+
+				var onKeyUp = function ( event ) {
+
+					switch ( event.keyCode ) {
+
+						case 90: // z
+							moveForward = false;
+							break;
+
+						case 81: // q
+							moveLeft = false;
+							break;
+
+						case 83: // s
+							moveBackward = false;
+							break;
+
+						case 68: // d
+							moveRight = false;
+							break;
+
+							case 65: // A
+								ballanimation = 0;
+
+					}
+
+				};
+
+				document.addEventListener( 'keydown', onKeyDown, false ); //si une touche est enfoncée,on accède au fonction onKeyDown
+				document.addEventListener( 'keyup', onKeyUp, false );	//si une touche vient d'être relachée, on accède au fonction onKeyUp
+
 			}
 		</script>
 
